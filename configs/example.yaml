@@ -1,0 +1,50 @@
+# A complete experiment configuration.
+#
+# Run it with:   transinterp run configs/example.yaml
+# Then:          transinterp inspect artifacts/ioi-name-mover
+#                transinterp replay  artifacts/ioi-name-mover
+#
+# Unknown keys are rejected rather than ignored: a silently dropped typo means
+# the run that gets recorded is not the run you described.
+
+name: ioi-name-mover
+
+# Recorded verbatim in the artifact. State what would falsify the claim, so a
+# later reader can tell whether the analysis was specified before the result
+# was seen. Runs without a hypothesis are flagged as exploratory.
+hypothesis: >
+  Late-layer attention heads move the indirect-object name into the residual
+  stream. Falsified if patching them restores less than 20% of the clean
+  logit difference.
+
+model:
+  name_or_path: distilgpt2
+  revision: main          # pin a commit hash for a genuinely reproducible run
+  device: auto
+  dtype: auto
+  attn_implementation: eager   # fused kernels return no attention weights
+
+input:
+  prompts:
+    - "When John and Mary went to the store, John gave a drink to"
+  corrupted_prompts:
+    - "When Alice and Bob went to the store, Alice gave a drink to"
+
+capture:
+  capture_residual: true
+  capture_attention: true
+  capture_logits: true
+
+analysis:
+  logit_lens: true
+  attention_metrics: true
+  patching:
+    enabled: true
+    mode: replace         # restore clean activations into the corrupted run
+    correct_token: " Mary"
+    incorrect_token: " John"
+    targets: []           # empty scans every discovered component
+
+output_dir: artifacts
+seed: 0
+strict_determinism: false   # true forces deterministic kernels; slower

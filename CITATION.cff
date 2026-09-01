@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If TransInterp contributes to your work, please cite this repository."
+title: "TransInterp: Auditable Tooling for Mechanistic Interpretability of Transformer Models"
+type: software
+version: 0.3.0
+date-released: 2026-09-01
+authors:
+  - family-names: Gumise
+    given-names: Zoe Faith
+    email: gumisezoe@gmail.com
+    affiliation: Independent researcher
+repository-code: "https://github.com/Zoe4370/TransInterp"
+license: MIT
+keywords:
+  - mechanistic interpretability
+  - transformers
+  - activation analysis
+  - sparse autoencoders
+  - attention analysis
+  - decision trajectories
+abstract: >-
+  TransInterp is an open-source research toolkit for capturing Transformer
+  activations, inspecting attention and latent features, tracing layer-wise
+  decision trajectories, and exporting reproducible analysis artifacts.

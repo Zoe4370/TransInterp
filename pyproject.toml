@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "transinterp"
+version = "0.4.0"
+description = "Reproducible, auditable tooling for mechanistic interpretability of Transformer models."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Zoe Faith Gumise", email = "gumisezoe@gmail.com" }]
+keywords = ["mechanistic interpretability", "transformers", "attention", "activation patching", "reproducibility", "provenance"]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "pydantic>=2.0",
+  "torch>=2.0",
+  "transformers>=4.38",
+  "matplotlib>=3.7",
+  "seaborn>=0.13",
+  "typer>=0.9",
+  "rich>=13.0",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "tokenizers>=0.15", "pytest-cov>=5.0", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7"]
+notebooks = ["jupyter>=1.0", "plotly>=5.20", "umap-learn>=0.5"]
+
+[project.urls]
+Homepage = "https://github.com/Zoe4370/TransInterp"
+Documentation = "https://github.com/Zoe4370/TransInterp/tree/main/docs"
+Issues = "https://github.com/Zoe4370/TransInterp/issues"
+Changelog = "https://github.com/Zoe4370/TransInterp/blob/main/CHANGELOG.md"
+
+[project.scripts]
+transinterp = "transinterp.cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/transinterp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "SIM", "UP", "ISC"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's documented API puts Argument/Option calls in parameter defaults.
+"src/transinterp/cli/main.py" = ["B008"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
