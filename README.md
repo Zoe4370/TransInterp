@@ -1,10 +1,11 @@
 # TransInterp
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/Zoe4370/TransInterp/actions/workflows/ci.yml/badge.svg)](https://github.com/Zoe4370/TransInterp/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Zoe4370/TransInterp)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-111%20passing-brightgreen.svg)](tests/)
 
-**Interpretability experiments that another researcher can rerun and check.**
+**Reproducible interpretability experiments: run, verify, and replay activation patching with content-addressed artifacts.**
 
 TransInterp captures Transformer internals, runs causal interventions on them,
 and writes the whole thing to a content-addressed bundle: activations, config,
@@ -35,6 +36,48 @@ Concretely, every result carries:
 - the seed and exactly which determinism controls were applied
 - the stated hypothesis — or an explicit note that there wasn't one
 
+## A worked example
+
+`examples/induction_experiment.py` trains a two-layer transformer on a
+repeated-sequence task until it copies in context perfectly, then uses
+TransInterp to ask which heads are responsible. It runs in about a minute and
+downloads nothing.
+
+```bash
+python examples/induction_experiment.py --figures assets/
+```
+
+**Step 1 — look at the attention.** One head shows the textbook induction
+stripe: after the sequence repeats, it attends back to the token that followed
+the earlier copy. A low-scoring head in the same layer is diffuse by
+comparison.
+
+![Attention patterns on a repeated sequence](assets/induction-attention.png)
+
+**Step 2 — score every head.** `induction_head_score` ranks L0H0 highest.
+
+![Induction score per head](assets/induction-scores.png)
+
+At this point the tempting write-up is "L0H0 is the induction head." That
+would be wrong.
+
+**Step 3 — intervene.** Ablating L0H0 changes nothing. Ablating *any* single
+head changes nothing. Ablating all of layer 0's attention collapses accuracy
+from 100% to 2%.
+
+![Ablation results](assets/induction-ablation.png)
+
+The behaviour depends on that sublayer but on no individual head — the
+mechanism is redundant, and four heads cover for each other. The attention
+pattern was real, and the causal story it suggested was not. Only the
+intervention distinguishes them, which is why this library treats patterns as
+evidence and interventions as the test.
+
+One caveat travels with this result, as it should: the task repeats at a fixed
+offset, so a head that simply attends a fixed distance back would also score
+as induction here. Separating genuine content-based induction from a
+positional shortcut needs variable repeat offsets as a control.
+
 ## How it compares
 
 TransInterp is not trying to replace the established tools, and for most
@@ -59,11 +102,20 @@ record.
 
 ## Install
 
+For users, install the published package directly from PyPI:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+python -m pip install transinterp
+```
+
+For contributors who want the development dependencies:
+
 ```bash
 git clone https://github.com/Zoe4370/TransInterp.git
 cd TransInterp
 python -m venv .venv && source .venv/bin/activate
-pip install -e '.[dev]'
+python -m pip install -e '.[dev]'
 ```
 
 Install the PyTorch build matching your CUDA version first if you want GPU.
@@ -169,8 +221,11 @@ scores = induction_head_score(attention, token_ids)   # (batch, heads)
 basis = fit_pca(hidden, n_components=16)
 ```
 
+![Attention concentration and head similarity](assets/attention-analysis.png)
+
 A high induction score is a hint, not circuit membership. Confirm it by
-patching the head and measuring the effect.
+patching the head and measuring the effect — as the worked example above shows,
+the two can disagree.
 
 ## Repository map
 
@@ -186,6 +241,38 @@ patching the head and measuring the effect.
 | `src/transinterp/provenance.py` | Environment and git capture |
 | `src/transinterp/determinism.py` | Seeding and determinism controls |
 | `src/transinterp/cli/` | `run`, `replay`, `verify`, `inspect`, `compare` |
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    subgraph capture["Capture"]
+        M[Model] -->|forward hooks| R[ActivationRecord<br/>tensors + metadata]
+    end
+
+    subgraph analyse["Analyse"]
+        R --> A[Attention metrics<br/>entropy - edges - induction]
+        R --> F[Features<br/>PCA - sparse autoencoder]
+        R --> L[Logit lens<br/>self-verifying]
+        M --> P[Interventions<br/>patching - ablation]
+    end
+
+    subgraph record["Record"]
+        A --> B[ArtifactBundle]
+        F --> B
+        L --> B
+        P --> B
+        C[ExperimentConfig] --> B
+        E[Provenance<br/>versions - git - seed] --> B
+        B --> MF[manifest.json<br/>sha256 per file<br/>+ fingerprint]
+    end
+
+    MF -->|transinterp verify| V{{digests match?}}
+    MF -->|transinterp replay| RP{{same numbers?}}
+```
+
+Analyses read normalized records and return serializable objects. Nothing in
+the core imports a model class; adapters sit at the boundary.
 
 ## What this does not do
 

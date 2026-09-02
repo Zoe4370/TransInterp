@@ -7,8 +7,16 @@ Each example states what it demonstrates and whether it downloads anything.
 | `basic_usage.py` | no | Hook capture, attention metrics, decision trajectories on a synthetic model |
 | `feature_extraction_demo.py` | no | PCA and sparse-autoencoder decomposition of synthetic activations |
 | `reproducible_experiment.py` | no | The full loop: run, verify, tamper-detect, replay |
+| `induction_experiment.py` | no | Trains a model, finds an induction head, and shows why the correlational score and the causal test disagree |
 
-Start with `reproducible_experiment.py`. It builds a tiny transformer on disk,
+Start with `induction_experiment.py` for the science and `reproducible_experiment.py` for the machinery.
+
+`induction_experiment.py` trains a two-layer transformer for about a minute,
+ranks every head by induction score, then ablates them one at a time. The
+highest-scoring head turns out to be individually dispensable while its whole
+sublayer is essential — the figures in the project README come from this run.
+
+`reproducible_experiment.py` It builds a tiny transformer on disk,
 runs a patching experiment, writes an artifact bundle, shows verification
 catching a tampered file, and replays the run to confirm it reproduces:
 

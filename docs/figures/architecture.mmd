@@ -1,15 +1,24 @@
 flowchart LR
-    A[Transformer model] --> B[HookCapture]
-    B --> C[ActivationRecord]
-    C --> D[Feature extraction]
-    C --> E[Attention metrics]
-    C --> F[Decision trajectories]
-    E --> G[Intervention ranking]
-    D --> H[Feature visualizations]
-    E --> I[Attention heatmaps]
-    F --> J[Trajectory plots]
-    G --> K[JSON graph export]
-    H --> L[Research artifacts]
-    I --> L
-    J --> L
-    K --> L
+    subgraph capture["Capture"]
+        M[Model] -->|forward hooks| R[ActivationRecord<br/>tensors + metadata]
+    end
+
+    subgraph analyse["Analyse"]
+        R --> A[Attention metrics<br/>entropy · edges · induction]
+        R --> F[Features<br/>PCA · sparse autoencoder]
+        R --> L[Logit lens<br/>self-verifying]
+        M --> P[Interventions<br/>patching · ablation]
+    end
+
+    subgraph record["Record"]
+        A --> B[ArtifactBundle]
+        F --> B
+        L --> B
+        P --> B
+        C[ExperimentConfig] --> B
+        E[Provenance<br/>versions · git · seed] --> B
+        B --> MF[manifest.json<br/>sha256 per file<br/>+ fingerprint]
+    end
+
+    MF -->|transinterp verify| V{{digests match?}}
+    MF -->|transinterp replay| RP{{same numbers?}}

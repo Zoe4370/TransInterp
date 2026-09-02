@@ -44,6 +44,10 @@ described reproducible research artifacts but had no code to produce them.
   strings, and model-identity provenance including the resolved commit hash.
 - `examples/reproducible_experiment.py`, a full run/verify/tamper/replay demo
   that downloads nothing.
+- `examples/induction_experiment.py`, which trains a small model until
+  in-context copying emerges, ranks heads by induction score, and then shows
+  the correlational ranking and the causal ablation disagreeing. Supplies the
+  figures used in the README.
 
 ### Fixed
 
@@ -64,7 +68,11 @@ described reproducible research artifacts but had no code to produce them.
 
 - README rewritten to describe implemented behavior only, with an explicit
   "What this does not do" section and a comparison against TransformerLens,
-  nnsight, and SAELens.
+  nnsight, and SAELens. It now opens with a worked result rather than a feature
+  list, and the figures are real output from `examples/induction_experiment.py`.
+- Replaced 8.8 MB of decorative stock illustration in `assets/` with 150 KB of
+  generated experiment figures. Every image in the README is now reproducible
+  by running a script in the repository.
 - Adapter documents why `attn_implementation` defaults to `eager`: fused
   kernels never materialize the attention matrix, so attention metrics would
   silently receive nothing.
