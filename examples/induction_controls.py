@@ -367,10 +367,10 @@ def head_induction_scores(
 
 
 @torch.no_grad()
-def span_induction_scores(
+def span_attention_scores(
     model: Any, batches: Sequence[EvalBatch], *, sequences: int = 32
-) -> np.ndarray:
-    """Induction score restricted to queries inside a known repeated block.
+) -> dict[str, np.ndarray]:
+    """Where each head looks from inside a repeated block, per head.
 
     ``induction_head_score`` averages over every query whose token appeared
     earlier — which, on these sequences, is mostly random filler that happens
@@ -378,13 +378,24 @@ def span_induction_scores(
     how much of the sequence is a repeat, so it is much heavier on the
     variable-offset task (one short block) than on the fixed-offset task (half
     the sequence). Comparing the two models on the library metric alone would
-    therefore compare task structure as much as head behavior.
+    compare task structure as much as head behavior.
 
-    This variant uses the generator's ground truth: for the query that must
-    predict the copied token at ``s2 + j``, the induction target is exactly
-    position ``s1 + j``, and no other position counts.
+    This uses the generator's ground truth instead. The query that must
+    predict the copied token at ``s2 + j`` sits at ``s2 + j - 1`` and carries
+    the same token as ``s1 + j - 1``. Two source positions are then worth
+    telling apart:
+
+    ``induction_target`` (``s1 + j``)
+        the token that *followed* the earlier occurrence — what an induction
+        head attends to, and what ``induction_head_score`` measures.
+    ``earlier_occurrence`` (``s1 + j - 1``)
+        the earlier occurrence of the query's own token. A head that matches
+        on content but does not shift by one lands here. It scores zero as an
+        induction head while still doing the content matching that in-context
+        copying requires, so a low induction score does not by itself mean a
+        head is ignoring content.
     """
-    totals: np.ndarray | None = None
+    totals = {"induction_target": None, "earlier_occurrence": None}
     positions = 0
     counted = 0
     for tokens, _, meta in batches:
@@ -392,19 +403,26 @@ def span_induction_scores(
             break
         take = min(tokens.shape[0], sequences - counted)
         stacked = torch.stack(_attentions(model, tokens[:take]))
-        if totals is None:
-            totals = np.zeros((stacked.shape[0], stacked.shape[2]))
+        shape = (stacked.shape[0], stacked.shape[2])
+        for name in totals:
+            if totals[name] is None:
+                totals[name] = np.zeros(shape)
         for row in range(take):
             start = int(meta["start"][row])
             block = int(meta["block"][row])
             first = start - int(meta["offset"][row])
             for step in range(1, block):
-                totals += stacked[:, row, :, start + step - 1, first + step].numpy()
+                query = start + step - 1
+                totals["induction_target"] += stacked[:, row, :, query, first + step].numpy()
+                totals["earlier_occurrence"] += (
+                    stacked[:, row, :, query, first + step - 1].numpy()
+                )
                 positions += 1
         counted += take
-    if totals is None:
-        return np.zeros((1, 1))
-    return totals / max(positions, 1)
+    return {
+        name: (grid / max(positions, 1)) if grid is not None else np.zeros((1, 1))
+        for name, grid in totals.items()
+    }
 
 
 def head_specs(layer: int, heads: Sequence[int], n_head: int) -> list[PatchSpec]:
@@ -523,6 +541,7 @@ class SeedResult:
     accuracy: dict[str, float] = field(default_factory=dict)
     induction: dict[str, list[list[float]]] = field(default_factory=dict)
     span_induction: dict[str, list[list[float]]] = field(default_factory=dict)
+    span_match: dict[str, list[list[float]]] = field(default_factory=dict)
     ablations: dict[str, dict[str, float]] = field(default_factory=dict)
     offset_profile: dict[str, dict[str, float]] = field(default_factory=dict)
 
@@ -575,7 +594,9 @@ def run_seed(seed: int, args: argparse.Namespace, device: torch.device) -> SeedR
             result.accuracy[f"{label} on {name}"] = evaluate(model, batches)
 
         result.induction[label] = head_induction_scores(model, evaluation[native]).tolist()
-        result.span_induction[label] = span_induction_scores(model, evaluation[native]).tolist()
+        span = span_attention_scores(model, evaluation[native])
+        result.span_induction[label] = span["induction_target"].tolist()
+        result.span_match[label] = span["earlier_occurrence"].tolist()
         result.ablations[label] = run_ablations(
             model, evaluation[native], n_layer=args.n_layer, n_head=args.n_head
         )
@@ -736,9 +757,10 @@ def make_figures(
     # 3. Induction scores --------------------------------------------------
     metrics = [
         ("induction_head_score\n(library, all queries)", "induction"),
-        ("induction score\n(queries inside a real repeat)", "span_induction"),
+        ("induction target\n(inside a real repeat)", "span_induction"),
+        ("earlier occurrence\nof the query's own token", "span_match"),
     ]
-    figure, axes = plt.subplots(2, 2, figsize=(8.2, 5.4))
+    figure, axes = plt.subplots(3, 2, figsize=(8.2, 7.8))
     grids = {
         (attribute, label): np.mean(
             [np.array(getattr(run, attribute)[label]) for run in seeds], axis=0
@@ -1002,14 +1024,19 @@ def verdict(
     for index, label in enumerate(SERIES):
         library = np.array([run.induction[label] for run in seeds]).mean(axis=0)
         span = np.array([run.span_induction[label] for run in seeds]).mean(axis=0)
+        match = np.array([run.span_match[label] for run in seeds]).mean(axis=0)
         best = np.unravel_index(int(library.argmax()), library.shape)
+        per_layer = ", ".join(
+            f"L{layer} {library[layer].max():.2f}" for layer in range(library.shape[0])
+        )
         lines.append(
             f"5{'ab'[index]}. {label} model, induction_head_score: highest head is "
-            f"L{best[0]}H{best[1]} at {library[best]:.2f} (best per layer: "
-            + ", ".join(f"L{layer} {library[layer].max():.2f}" for layer in range(library.shape[0]))
-            + "). Restricted to queries inside a real repeated block, the same heads score "
+            f"L{best[0]}H{best[1]} at {library[best]:.2f} (best per layer: {per_layer}). "
+            "Inside a real repeated block, the best head per layer puts "
             + ", ".join(f"L{layer} {span[layer].max():.2f}" for layer in range(span.shape[0]))
-            + "."
+            + " on the induction target and "
+            + ", ".join(f"L{layer} {match[layer].max():.2f}" for layer in range(match.shape[0]))
+            + " on the earlier occurrence of the query's own token."
         )
 
     return lines, facts
@@ -1065,6 +1092,10 @@ def write_bundle(
         bundle.add_tensor(
             f"{key}.span_induction_scores",
             torch.tensor([run.span_induction[label] for run in seeds]),
+        )
+        bundle.add_tensor(
+            f"{key}.span_match_scores",
+            torch.tensor([run.span_match[label] for run in seeds]),
         )
         bundle.add_tensor(
             f"{key}.ablation_accuracy",
