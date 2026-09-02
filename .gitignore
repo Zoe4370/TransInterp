@@ -5,8 +5,10 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .ipynb_checkpoints/
-artifacts/
-outputs/
+# Experiment output directories, at the repository root only: a bare
+# `artifacts/` also matches src/transinterp/artifacts/, which is source.
+/artifacts/
+/outputs/
 *.pt
 *.safetensors
 .env
