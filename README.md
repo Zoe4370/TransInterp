@@ -1,7 +1,7 @@
 # TransInterp
 
 [![CI](https://github.com/Zoe4370/TransInterp/actions/workflows/ci.yml/badge.svg)](https://github.com/Zoe4370/TransInterp/actions/workflows/ci.yml)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22691733.svg)](https://doi.org/10.5281/zenodo.22691733)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22691733.svg)](https://zenodo.org/records/22691733)
 [![License](https://img.shields.io/github/license/Zoe4370/TransInterp)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/tests-111%20passing-brightgreen.svg)](tests/)
