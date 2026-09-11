@@ -2,8 +2,9 @@ cff-version: 1.2.0
 message: "If TransInterp contributes to your work, please cite this repository."
 title: "TransInterp: Auditable Tooling for Mechanistic Interpretability of Transformer Models"
 type: software
-version: 0.3.0
-date-released: 2026-09-01
+version: 0.4.0
+date-released: 2026-09-11
+doi: 10.5281/zenodo.22691733
 authors:
   - family-names: Gumise
     given-names: Zoe Faith
